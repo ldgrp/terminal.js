@@ -1,117 +1,208 @@
-var Terminal = (function() {
-    var history = (localStorage.getItem("history") ? localStorage.getItem("history").split(",") : []),
-        historyIndex = history.length;
-        self = {};
+/*! 
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2017 Leo O.
+ * Copyright (c) 2014 Martin N.
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
-    var KEY_UP   = 38,
-        KEY_DOWN = 40,
-        KEY_TAB  = 9;
+var KEY_BACKSPACE = 8,
+  KEY_TAB = 9,
+  KEY_RETURN = 13,
+  KEY_LEFT = 37,
+  KEY_UP = 38,
+  KEY_RIGHT = 39,
+  KEY_DOWN = 40;
 
-    // Auxiliary functions
+class Terminal {
+  constructor(element, shell) {
+    this.element = element;
+    this.shell = shell;
 
-    var resetPrompt = function(terminal, prompt) {
-        var newPrompt = prompt.parentNode.cloneNode(true);
-        prompt.setAttribute("contenteditable", false);
-        if(self.prompt) {
-            newPrompt.querySelector(".prompt").textContent = self.prompt;
-        }
-        terminal.appendChild(newPrompt);
-        newPrompt.querySelector(".input").innerHTML = " ";
-        newPrompt.querySelector(".input").focus();
-    };
+    this.buffer = "";
+    this.cursorPos = 0;
 
-    var runCommand = function(terminal, cmd, args) {
-        terminal.innerHTML += (self.commands[cmd](args));
-    };
+    this.updateBuffer();
 
-    var updateHistory = function(cmd) {
-        history.push(cmd);
-        localStorage.setItem("history", history);
-        historyIndex = history.length;
-    };
+    element.addEventListener("keypress", event => {
+      console.log("keypress!");
+      if (event.keyCode != 13)
+        this.appendCharacter(String.fromCharCode(event.keyCode));
+      event.preventDefault();
+    });
 
-    var browseHistory = function(prompt, direction) {
-        var changedPrompt = false;
-        if(direction == KEY_UP && historyIndex > 0) {
-            prompt.textContent = history[--historyIndex];
-            changedPrompt = true;
-        } else if(direction == KEY_DOWN) {
-            if(historyIndex < history.length) ++historyIndex;
-            if(historyIndex < history.length) prompt.textContent = history[historyIndex];
-            else prompt.textContent = " ";
-            changedPrompt = true;
-        }
+    element.addEventListener("keydown", event => {
+      switch (event.keyCode) {
+        case KEY_TAB:
+          this.autoCompleteInput(this.buffer.trim());
+          event.preventDefault();
+          break;
+        case KEY_RETURN:
+          this.runCommand(this.buffer.trim());
+          this.updateBuffer();
+          event.preventDefault();
+          break;
+        case KEY_BACKSPACE:
+          this.deleteCharacter();
+          event.preventDefault();
+          break;
+        case KEY_LEFT:
+          if (this.cursorPos > 0) this.cursorPos--;
+          this.updateBuffer();
+          event.preventDefault();
+          break;
+        case KEY_RIGHT:
+          if (this.cursorPos < this.buffer.length) this.cursorPos++;
+          this.updateBuffer();
+          event.preventDefault();
+          break;
+        case KEY_UP:
+        case KEY_DOWN:
+          this.browseHistory(event.keyCode);
+          event.preventDefault();
+          break;
+      }
+    });
+  }
 
-        if(changedPrompt) {
-            var range = document.createRange();
-            var sel = window.getSelection();
-            range.setStart(prompt.childNodes[0], prompt.textContent.length);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
-    };
+  resetBuffer(){
+    this.element.querySelector(".content").innerHTML +=
+      "<span>" +
+      this.shell.prompt +
+      "</span>" +
+      "<span>&nbsp;" +
+      this.buffer +
+      "</span><br>";
+    this.buffer = "";
+    this.cursorPos = 0;
+  }
 
-    var autoCompleteInput = function(input) {
-        var cmds        = self.commands,
-            re          = new RegExp("^" + input, "ig"),
-            suggestions = [];
-        for(var cmd in cmds) {
-            if(cmds.hasOwnProperty(cmd) && cmd.match(re)) {
-                suggestions.push(cmd);
-            }
-        }
-        return suggestions;
-    };
+  autoCompleteInput(input) {
+    var text = input;
+    var suggestions = this.shell.autoCompleteInput(
+      text.replace(/\s+/g, "")
+    );
 
-    // Terminal functions
+    if (suggestions.length == 1) {
+      this.buffer = suggestions[0];
+      this.cursorPos = this.buffer.length;
+      this.updateBuffer();
+    }
+  }
 
-    self.init = function(elem, commands) {
-        self.commands = commands;
-    
-        elem.addEventListener("keydown", function(event) {
-            if(event.keyCode == KEY_TAB) {
-                var prompt = event.target;
-                var suggestions = autoCompleteInput(prompt.textContent.replace(/\s+/g, ""));
+  browseHistory(key) {
+    var dir = key == KEY_UP ? -1 : 1;
+    var output = this.shell.browseHistory(dir);
+    if (!output) this.buffer = output;
+    this.updateBuffer();
+  }
 
-                if(suggestions.length == 1) {
-                    prompt.textContent = suggestions[0];
-                    var range = document.createRange();
-                    var sel = window.getSelection();
-                    range.setStart(prompt.childNodes[0], suggestions[0].length);
-                    range.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                }
+  runCommand(input) {
+    var text = input.trim();
+    var output = '';
 
-                event.preventDefault(true);
-                return false;
-            }
-        });
-    
-        elem.addEventListener("keyup", function(event) {
-            if(historyIndex < 0) return;
-            browseHistory(event.target, event.keyCode);
-        });
+    output = this.shell.runCommand(text);
+    this.resetBuffer();
+    if(output) this.element.querySelector(".content").innerHTML += output;
+  }
 
-        elem.addEventListener("keypress", function(event) {
-            var prompt = event.target;
-            if(event.keyCode != 13) return false;
+  appendCharacter(char) {
+    var left = this.buffer.substring(0, this.cursorPos);
+    var right = this.buffer.substring(this.cursorPos, this.buffer.length);
+    this.buffer = left + char + right;
+    this.cursorPos++;
+    this.updateBuffer();
+  }
 
-            updateHistory(prompt.textContent);
+  deleteCharacter(char) {
+    if (this.cursorPos - 1 < 0) return;
+    var left = this.buffer.substring(0, this.cursorPos - 1);
+    var right = this.buffer.substring(this.cursorPos, this.buffer.length);
+    this.buffer = left + right;
+    this.cursorPos--;
+    this.updateBuffer();
+  }
 
-            var input = prompt.textContent.split(" ");
-            if(input[0] && input[0] in self.commands) {
-                runCommand(elem, input[0], input);
-            }
+  updateBuffer() {
+    var prompt = this.shell.prompt;
+    var left = "";
+    var cursor = "&nbsp;";
+    var right = "";
 
-            resetPrompt(elem, prompt);
-            event.preventDefault();
-        });
+    if (this.cursorPos > 0) left = this.buffer.substring(0, this.cursorPos);
+    if (this.cursorPos < this.buffer.length)
+      cursor = this.buffer.substring(this.cursorPos, this.cursorPos + 1);
+    if (this.cursorPos + 1 < this.buffer.length)
+      right = this.buffer.substring(this.cursorPos + 1, this.buffer.length);
 
-        elem.querySelector(".input").focus();
-        return self;
-    };
-    
-    return self;
-})();
+    this.element.querySelector(".prompt").innerHTML = prompt;
+    this.element.querySelector(".left").innerHTML = left;
+    this.element.querySelector(".cursor").innerHTML = cursor;
+    this.element.querySelector(".right").innerHTML = right;
+
+    var terminal = this.element;
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+}
+
+class Shell {
+  constructor(commands, prompt, welcomeMsg) {
+    this.commands = commands;
+    this.history = [];
+    this.historyIndex = 0;
+    this.prompt = prompt;
+    this.welcomeMsg = welcomeMsg;
+  }
+
+  updateHistory(cmd) {
+    this.history.push(cmd);
+    this.historyIndex = this.history.length;
+  }
+  browseHistory(direction) {
+    if (direction == -1 && this.historyIndex > 0)
+      return this.history[--this.historyIndex];
+    if (direction == 1 && this.historyIndex < this.history.length)
+      return this.history[++this.historyIndex];
+    return false;
+  }
+
+  runCommand(text) {
+    this.updateHistory(text);
+
+    var text = text.split(" ");
+    var cmd = text[0];
+    var args = text.slice(1, text.length);
+    if (cmd) {
+      if (cmd in this.commands) return this.commands[cmd](args);
+      else return "<p>Error</p>";
+    } else return false;
+  }
+
+  autoCompleteInput(text) {
+    var re = new RegExp("^" + text, "ig"),
+      suggestions = [];
+
+    for (var cmd in this.commands) {
+      if (this.commands.hasOwnProperty(cmd) && cmd.match(re))
+        suggestions.push(cmd);
+    }
+
+    return suggestions;
+  }
+}
