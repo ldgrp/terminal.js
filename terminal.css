@@ -1,28 +1,78 @@
-@import url(//fonts.googleapis.com/css?family=VT323);
+@import url('https://fonts.googleapis.com/css?family=Source+Code+Pro');
 
-/**
-* Terminal container.
-* Important note: The "VT323" font face comes from Google web fonts.
-*/
-#terminal {
-    font-family: 'VT323', cursive;
-    width:       100%; 
-    height:      100%;
+body {
+  width: 100%;
+  height: 100%;
+  margin: 1em;
+  box-sizing: border-box;
+  background-color:black;
 }
 
-/**
-* The input span where the input happens.
-* Also applied to the previous inputs made in the current session.
-*/
-#terminal .input {
-    height:         1em;
-    min-width:      1em;
-    outline-color:  black;
-    border:         none;
-    display:        inline-block;
+span {
+    display: inline-block;
+    white-space: pre-wrap;
 }
 
-#terminal p {
-    margin:     0;
-    padding:    0;
+.header{
+    text-align: center;
+    color:white;
+}
+
+.terminal {
+    background: black;
+    color: white;
+    width:100%;
+    height: 300px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: .9em;
+    overflow: auto;
+    padding: 10px;
+    border: 2px solid white;
+    border-radius: 10px;
+}
+
+.terminal:focus{
+    /* rip accessibility */
+    outline: none; 
+}
+
+.terminal .input {
+    height: 1em;
+    min-width: 1em;
+    outline-color: transparent;
+    border: none;
+    display: inline-block;
+}
+
+.terminal p {
+    margin: 0;
+    padding: 0;
+}
+.terminal li {
+    margin: 0;
+    padding: 0;
+}
+.terminal ul {
+    margin: 0;
+    padding: 0;
+}
+.cursor {
+  font-weight: 100;
+  -webkit-animation: 1s blink infinite;
+  animation: 1s blink infinite;
+}
+
+@-webkit-keyframes blink {
+  0%, 49% {
+    background-color: black;
+    color: white;
+  }
+  50%, 100% {
+    background-color: white;
+    color: black;
+  }
+}
+
+@media only screen and (max-width: 960px) {
+  .filler { display: none}
 }
