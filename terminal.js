@@ -42,8 +42,9 @@ class Terminal {
 
     element.addEventListener("keypress", event => {
       console.log("keypress!");
-      if (event.keyCode != 13)
-        this.appendCharacter(String.fromCharCode(event.keyCode));
+      var charCode = (typeof event.which == "number") ? event.which : event.keyCode;
+      if (charCode != 13)
+        this.appendCharacter(String.fromCharCode(charCode));
       event.preventDefault();
     });
 
